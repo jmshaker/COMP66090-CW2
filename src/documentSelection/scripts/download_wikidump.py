@@ -6,16 +6,15 @@ import os
 from bs4 import BeautifulSoup
 from simple_term_menu import TerminalMenu
 
-
 def getDumpUrls():
         
     response = requests.get("https://dumps.wikimedia.org/enwiki/latest/")
       
     print(response.status_code)
     
-    x = response.text.replace('</a> ', '</a>  ')
-            
-    lines = x.split("\n")
+    page_content = response.text.replace('</a> ', '</a>  ')
+    
+    lines = page_content.split("\n")
     
     final = []
     
@@ -28,7 +27,6 @@ def getDumpUrls():
     objs = []
                 
     for i in range(0, len(final)-3, 3):
-        
         a_element = final[i]
         date = final[i+1]
         size = str(round(int(final[i+2]) * 10e-6, 2))
@@ -58,9 +56,7 @@ def getDumpUrls():
 def downloadDumps(chosen_dumps):
     
     i = 0
-    
     for chosen_dump in chosen_dumps:
-        
         i = i + 1
         print("Downloading " + str(chosen_dump['url']) + " (" + str(i) + "/" + str(len(chosen_dumps) * 2) + ")")
         url = "https://dumps.wikimedia.org/enwiki/latest/" + chosen_dump['url']
@@ -68,12 +64,8 @@ def downloadDumps(chosen_dumps):
         open('./../data/wikidumps/' + chosen_dump['url'], 'wb').write(r.content)
         i = i + 1
         print("Unzipping " + str(chosen_dump['url']) + " (" + str(i) + "/" + str(len(chosen_dumps)* 2) + ")")
-        
         with bz2.open('./../data/wikidumps/' + chosen_dump['url'], "rb") as f:
-            content = f.read()
-        
-        open('./../data/wikidumps/' + chosen_dump['url'].replace('.bz2', ''), 'wb').write(content)
-        
+            open('./../data/wikidumps/' + chosen_dump['url'].replace('.bz2', ''), 'wb').write(f.read())
         os.remove('./../data/wikidumps/' + chosen_dump['url'])
         
 parser = argparse.ArgumentParser()
@@ -101,4 +93,3 @@ if (dumpUrls != []):
 
 else:
     print("All wikidumps downloaded.")
-
