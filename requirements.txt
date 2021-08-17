@@ -1,5 +1,16 @@
-simple_term_menu
 beautifulsoup4
 gsutil
 newspaper3k
 nltk
+openjdk-8-jdk
+torch==1.4.0
+lxml
+gensim
+pyahocorasick
+sqlalchemy
+pandas
+wikiextractor==0.1
+wandb
+transformers
+datasets
+sentence-transformers==1.0.3
