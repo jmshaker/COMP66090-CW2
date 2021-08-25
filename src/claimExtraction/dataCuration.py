@@ -3,9 +3,14 @@ import requests
 import json
 import random
 import time
-from newspaper import Article
 import nltk
 from nltk.tokenize.punkt import PunktSentenceTokenizer, PunktParameters
+from newspaper import Article
+
+import sys
+sys.path.append('.')
+
+from AIDA import perform_AIDA_check
 
 punkt_param = PunktParameters()
 punkt_param.abbrev_types = set(open("data/ignore_delimiters.txt", "r").read().split())
@@ -21,8 +26,7 @@ def getArticleUrls():
     articleUrls = []
     topics = open("data/topics.txt", "r").read().split()
 #    topics = open("data/topics2.txt", "r").read().split()
-#    topics = open("data/topics3.txt", "r").read().split()    
-
+#    topics = open("data/topics3.txt", "r").read().split()
     
     #publishStartDate = "2021-06-01"
     #publishEndDate = "2021-06-10"
@@ -32,9 +36,10 @@ def getArticleUrls():
     
     for topic in topics:
         for page in range(1, 6):
-            #response = requests.get("https://newsapi.org/v2/everything?q=" + topic + "&language=" + language + "&page=" + str(page) + "&sortBy=relevancy&apiKey=383e6061e4414bf0b1211f1639f1e433")
-            #response = requests.get("https://newsapi.org/v2/everything?q=" + topic + "&language=" + language + "&page=" + str(page) + "&sortBy=relevancy&apiKey=a6f7f08d7f4e4cf5b487ac036aed7d06")
-            response = requests.get("https://newsapi.org/v2/everything?q=" + topic + "&language=" + language + "&page=" + str(page) + "&sortBy=relevancy&apiKey=e273e8b4307641d9b8c77df125fe9377")
+
+            response = requests.get("https://newsapi.org/v2/everything?q=" + topic + "&language=" + language + "&page=" + str(page) + "&sortBy=relevancy&apiKey=" + API KEY)
+            #response = requests.get("https://newsapi.org/v2/everything?q=" + topic + "&language=" + language + "&page=" + str(page) + "&sortBy=relevancy&apiKey=" + API KEY)
+            #response = requests.get("https://newsapi.org/v2/everything?q=" + topic + "&language=" + language + "&page=" + str(page) + "&sortBy=relevancy&apiKey=" + API KEY)
 
             print(response.status_code)
             
@@ -60,56 +65,83 @@ def downloadParseArticles(articleUrls):
         
         print(str(articleCount) + "/" + str(len(articleUrls)))
         
-        article = Article(url)
+        parentNodes = []
         
         try:
+            article = Article(url)
             article.download()
             article.parse()
             
+        except:
+            print("download failed")
+            article = None
+            pass
+        
+        if (article != None):
+                     
             article.text = re.sub('\n\n', ' ', article.text).strip()
             split_sent = sentence_splitter.tokenize(article.text)
-                
-            hyperlinkNodes = article.clean_top_node.xpath('//p//a') + article.clean_top_node.xpath('//li//a')
-            parentNodes = article.clean_top_node.xpath('//a/..')
+            
+            try:
+                hyperlinkNodes = article.clean_top_node.xpath('//p//a') + article.clean_top_node.xpath('//li//a')
+                parentNodes = article.clean_top_node.xpath('//a/..')
+            except:
+                pass
             
             hyperlinkNodes = [hlNode for hlNode in hyperlinkNodes if ((hlNode.text != None) and (hlNode.tail != None))]
             parentNodes = [pNode for pNode in parentNodes if (pNode.text != None)]
-        except:
-            print("download failed")
-        
-        
-        for pNode in parentNodes:
-            for sent in split_sent:
-                if (sent in pNode.text):
-                    pNode.text = pNode.text.replace(sent, '')
-        
-        sentences = []
-        
-        for parentNode in parentNodes:
-            tail = ""   
-            for node in hyperlinkNodes:             
-                if node in parentNode:
-                    tail = tail + node.text + node.tail            
-                    if (node.tail[len(node) - 1] == '.'):
-                        sentences.append(parentNode.text + tail)
-                        tail = ""
             
-        claimSentences = []                
+            for pNode in parentNodes:
+                for sent in split_sent:
+                    if (sent in pNode.text):
+                        pNode.text = pNode.text.replace(sent, '')
         
-        for hyperlinkNode in hyperlinkNodes:
-            for sentence in sentences:
-                sentence = re.sub('\xa0', ' ', sentence).strip()
-                split = sentence_splitter.tokenize(sentence)
-                for i in split:
-                    if (hyperlinkNode.text in i) and (i not in claimSentences):
-                        claimSentences.append(i)
-        
-        for sent in split_sent:
-            if (sent in claimSentences):
-                finalSentences.append('[' + sent + ']')
-            else:
-                finalSentences.append(sent)
+            sentences = []
+                        
+            for parentNode in parentNodes:
+                tail = ""   
+                for node in hyperlinkNodes:             
+                    if node in parentNode:
+                        tail = tail + node.text + node.tail            
+                        if (node.tail[len(node) - 1] == '.'):
+                            sentences.append(parentNode.text + tail)
+                            tail = ""
                 
+            claimSentences = []                
+                        
+            for hyperlinkNode in hyperlinkNodes:
+                for sentence in sentences:
+                    sentence = re.sub('\xa0', ' ', sentence).strip()
+                    split = sentence_splitter.tokenize(sentence)
+                    for i in split:
+                        if (hyperlinkNode.text in i) and (i not in claimSentences):
+                            claimSentences.append(i)
+            
+            for sent in split_sent:
+                
+                if (sent in claimSentences):
+                    sentence_lower = sent.lower()
+                    tokenized = nltk.word_tokenize(sent)
+                    tagged = nltk.pos_tag(tokenized)
+                    tags = []
+                    for tag in tagged:
+                        tags.append(tag[1])
+                        
+                    try:
+                        parsed = parser.parse(sentence)
+                    except:
+                        parsed = sentence.split()
+                        
+                    Atomic, Independent, Declarative, Absolute = perform_AIDA_check(sent, sentence_lower, parsed, tags)
+                    
+                    if Atomic == True and Independent == True and Declarative == True and Absolute == True:
+                        finalSentences.append('[' + sent + ']')
+                    else:
+                        finalSentences.append(sent)
+                
+                else:
+                    finalSentences.append(sent)
+
     return finalSentences
 
 
@@ -197,24 +229,6 @@ if __name__ == "__main__":
     #extractedSentences = classBalanced
     
     random.shuffle(extractedSentences)
-            
-    train_file = open("output/train.json", "w")
-    for line in extractedSentences[0:int(len(extractedSentences)*0.6)]:
-        train_file.write(line + '\n')
-    
-    train_file.close()
-    
-    dev_file = open("output/dev.json", "w")
-    for line in extractedSentences[int(len(extractedSentences)*0.6):int(len(extractedSentences)*0.8)]:
-        dev_file.write(line + '\n')
-    
-    dev_file.close()
-    
-    test_file = open("output/test.json", "w")
-    for line in extractedSentences[int(len(extractedSentences)*0.8):len(extractedSentences)]:
-        test_file.write(line + '\n')
-    
-    test_file.close()
     
     all_file = open("output/all.json", "w")
     for line in extractedSentences[0:int(len(extractedSentences))]:
