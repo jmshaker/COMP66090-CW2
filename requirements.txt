@@ -14,3 +14,5 @@ wandb
 transformers
 datasets
 sentence-transformers==1.0.3
+requests==2.20.0
+pyspotlight
